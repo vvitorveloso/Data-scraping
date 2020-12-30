@@ -1,0 +1,303 @@
+---
+title: "Download links"
+author: "Vitor Veloso"
+date: ''
+output:
+  pdf_document: default
+  html_document:
+    code_folding: hide
+editor_options:
+  chunk_output_type: console
+---
+
+```{r include = FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+knitr::opts_chunk$set(message=FALSE)
+knitr::opts_chunk$set(warning=FALSE)
+```
+
+```{r library}
+#remotes::install_github("omegahat/RTidyHTML")
+
+library(tidyverse)
+library(RCurl)
+library(RTidyHTML)
+library(XML)
+  
+# install.packages("rvest")
+library(rvest)
+
+
+```
+```{r get local dir}
+script_dir = dirname(rstudioapi::getActiveDocumentContext()$path)
+```
+
+```{r library}
+
+#console <- "dreamcast"
+console <- "nintendo-64"
+#console <- "playstation-2-ps2"
+
+site <- paste0("https://romsportugues.tk/category/",console,"/")
+
+
+ignorar_recentes <- c("https://romsportugues.tk/bomberman-fantasy-race/", "https://romsportugues.tk/emperors-new-groove/", "https://romsportugues.tk/kekkyoku-nankyoku-daibouken-antarctic-adventure/", "https://romsportugues.tk/spider-man-3-gba/", "https://romsportugues.tk/shadow-of-the-colossus-dublado/")
+```
+
+
+```{r numero de paginas}
+
+#baixa a pagina
+paginas <-
+  grep("page",
+       getHTMLLinks(
+         # getURL(
+         #   site,
+         #   ssl.verifypeer = FALSE
+         # )
+         
+htmlParse(
+  read_html(site)
+  )
+
+         
+         
+       )
+       , value = TRUE)
+
+#divide por /
+if(length(paginas) != 0){
+  print("ok")
+
+paginas <- strsplit(paginas,"/")
+
+paginas <-
+#maior valor  
+max(
+#numerico  
+as.numeric(
+#pega o ultimo valor
+sapply(paginas,'[',lengths(paginas))
+)
+)
+}
+if(length(paginas) == 0){
+print("set page to 1")
+  paginas = 1  
+}
+
+```
+
+
+```{r pega urls}
+
+
+if(exists("links_tmp")){
+  rm(links_tmp)  
+  }
+# if(exists("links")){
+#   rm(links)  
+#   }
+
+links <- character(0)
+
+
+if(paginas == 1){
+  site <- paste0("https://romsportugues.tk/category/",console)
+
+ links<-  grep("romsportugues.tk",
+       getHTMLLinks(
+
+htmlParse(
+  read_html(site)
+  )
+       )
+       , value = TRUE)  
+}else{
+for(page in seq(1,paginas)){
+   site <- paste0("https://romsportugues.tk/category/",console,"/page/",page)
+
+
+if(page == 1){
+     site <- paste0("https://romsportugues.tk/category/",console)
+}
+
+print(site )
+links_tmp <-
+  grep("romsportugues.tk",
+       getHTMLLinks(
+
+htmlParse(
+  read_html(site)
+  )
+
+         
+         
+       )
+       , value = TRUE)  
+
+
+# links_tmp <-
+#   grep("romsportugues.tk",
+#        getHTMLLinks(
+#          getURL(
+#            site,
+#            ssl.verifypeer = FALSE
+#          )
+#        )
+#        , value = TRUE)
+
+# close(links_tmp)
+links <- c(links,links_tmp)
+
+}
+}
+
+links_bkp <- links 
+
+
+# links <- links_bkp 
+
+```
+
+
+```{r filtra}
+ignorar <- c("tag", "category","packs-de-roms-em-portugues","lista-de-franquias","lista-de-generos","todos-jogos", "?random=1","perguntas-frequentes","emuladores","facebook","youtube","catarse.me","www.addtoany.com","author/cinza/","twitter","discord.gg","inkhive.com","imgur.com","https://vk.com/","wpdiscuz.com/","https://plus.google.com/share","odnoklassniki.ru","i.postimg.cc")
+
+
+for(i in ignorar){
+links <- grep(i,links,invert=TRUE,value=TRUE)
+}
+
+
+```
+
+
+```{r library}
+
+for(i in ignorar_recentes){
+links <- grep(i,links,invert=TRUE,value=TRUE)
+}
+links <- grep("gues.tk/$",links,value=TRUE,perl=TRUE,invert=TRUE)
+links <- unique(links)
+
+```
+
+
+
+```{r library}
+outlinks <- tibble(jogo = character(0),link = character(0))
+
+for(l in links){
+
+
+down <-
+  grep("",
+       getHTMLLinks(
+         # getURL(
+         #   l,
+         #   ssl.verifypeer = FALSE
+         # )
+         
+htmlParse(
+  read_html(l)
+  )
+
+         
+         
+       )
+       , value = TRUE)
+
+
+for(i in ignorar){
+
+  down <- grep(i,down,invert=TRUE,value=TRUE)
+}
+
+down <- unique(down)
+
+for(i in ignorar_recentes){
+
+  down <- grep(i,down,invert=TRUE,value=TRUE)
+}
+
+down <- grep("gues.tk/$",down,value=TRUE,perl=TRUE,invert=TRUE)
+
+for(down_now in down){
+
+if(length(grep("baixar",down_now)) > 0){
+  
+down2 <-
+  grep("",
+       getHTMLLinks(
+         # getURL(
+         #   down,
+         #   ssl.verifypeer = FALSE
+         # )
+         
+htmlParse(
+  read_html(
+    grep("baixar",down_now,value=TRUE)
+  )
+  )
+)
+       , value = TRUE)
+
+down_now <- grep("drive",down2,value=TRUE)
+  
+}
+print(l)
+print(down)
+outlinks<- outlinks %>% add_row(jogo = l ,link = down_now)
+}
+}
+
+write.csv(outlinks,paste0(script_dir,"/",console,".csv"), row.names = FALSE)
+
+```
+
+```{r download drive links}
+dir.create(paste0(script_dir,"/",console),showWarnings = FALSE)
+download_num <- lengths(outlinks)
+download_num <- as.numeric(download_num)[1]
+
+length(grep("drive",outlinks$link[linha],ignore.case = TRUE))
+for(linha in seq(1,download_num)){
+
+if(length(grep("drive",outlinks$link[linha],ignore.case = TRUE))
+ > 0){
+filename <- strsplit(outlinks$jogo[linha],"/")
+filename <- sapply(filename,'[',lengths(filename))
+
+fileurl <- strsplit(outlinks$link[linha],"=")
+fileurl <- sapply(fileurl,'[',lengths(fileurl))
+
+
+
+
+
+filepath <- paste0(script_dir,"/",console,"/",filename)
+
+try(drive_download(
+  as_id(fileurl), path = filepath, overwrite = TRUE)
+)}
+}
+?drive_download
+#install.packages("googledrive")
+library(googledrive)
+
+drive_download(
+  as_id(fileurl), path = filepath, overwrite = TRUE)
+
+try(drive_download(
+  as_id(fileurl), path = filepath, overwrite = TRUE)
+)
+?try
+```
+
+```{r}
+#checar
+test <- outlinks[!grepl("drive", outlinks$link),]
+```
+
